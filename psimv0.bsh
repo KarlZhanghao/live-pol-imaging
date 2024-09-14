@@ -1,0 +1,59 @@
+import ij.ImagePlus;
+import ij.process.FloatProcessor;
+import ij.process.ColorProcessor;
+import java.awt.Image;
+
+// 初始化数据存储
+// Initialize data storage
+store = mm.data().createRAMDatastore();
+// 创建显示
+// Create display
+//dw = mm.displays().createDisplay(store);
+// loop focus
+float[][] colorpixels1 = null;
+int width = 0, height = 0;
+for (int z = 0; z < 3; z++) {
+    float[] pixels = null;
+    // loop si phases
+    for (int i = 0; i < 3; i++) {
+        // 设置焦距 Set focus    
+        mmc.setPosition(z*3+i); //mmc.getPosition()获取当前焦距
+        // 采集图像 Acquire image
+        imgList = mm.acquisitions().snap();
+        // construct imp and ip
+        img = imgList.get(0);
+        ip = mm.data().ij().createProcessor(img);   //imp = new ImagePlus("Image", ip);
+        // cal average
+        if (pixels == null) {
+            width = ip.getWidth();
+            height = ip.getHeight();
+            pixels = new float[width * height];
+        }
+        for (int j = 0; j < pixels.length; j++) {
+            pixels[j] += ip.getf(j);
+        }
+    }
+    // create 3 channel image pixels
+    if (colorpixels1 == null) {
+        colorpixels1 = new float[3][width * height];
+    }
+    for (int j = 0; j < pixels.length; j++) {
+        colorpixels1[z][j] = pixels[j];
+    }
+}
+// 将float数组转换为int数组
+//ip = new FloatProcessor(width, height, colorpixels1[0]);
+//imp = new ImagePlus("title", ip);
+//imp.show();
+int[] intPixels = new int[width * height];
+for (int i = 0; i < width * height; i++) {
+    int r = (int) colorpixels1[0][i];
+    int g = (int) colorpixels1[1][i];
+    int b = (int) colorpixels1[2][i];
+    intPixels[i] = (r << 16) | (g << 8) | b;
+}
+ip = new ColorProcessor(width, height, intPixels);
+//img0 = colorpixels[0:width*height];
+//ip = new FloatProcessor(width, height, img0);
+imp = new ImagePlus("polar result", ip);
+imp.show();
