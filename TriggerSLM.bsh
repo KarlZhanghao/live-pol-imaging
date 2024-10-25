@@ -1,0 +1,5 @@
+NI_SLM = "DigitalIO";
+mmc.setAutoShutter(false);
+mmc.setShutterOpen(true);
+mmc.setProperty(NI_SLM, "State", 3);
+mmc.setProperty(NI_SLM, "State", 2);

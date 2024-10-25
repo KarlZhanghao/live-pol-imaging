@@ -1,0 +1,106 @@
+import ij.IJ;
+import ij.ImagePlus;
+import ij.ImageStack;
+import ij.process.ImageProcessor;
+import ij.process.ImageConverter;
+import ij.process.ColorProcessor;
+import ij.process.FloatProcessor;
+import ij.plugin.ImageCalculator;
+import ij.plugin.ZProjector;
+import java.awt.Color;
+import java.util.stream.IntStream;
+
+/** Params */
+// Polarization angles
+alpha = new double[]{0.0, 1.0472, 2.0944, 3.1416, 4.1888, 5.2360};
+beta = new double[]{0.4390, 0.4390, 0.4390, 0.8541, 0.8541, 0.8541};
+
+/** Acquisition Data */
+// Initialize data storage
+store = mm.data().createRAMDatastore();
+// loop data
+ImagePlus[] impList = new ImagePlus[6];
+ImageCalculator ic = new ImageCalculator();
+for (int z = 0; z < 6; z++) {
+    ImagePlus impave = null;
+    // Set focus  
+    mmc.setPosition(z); //mmc.getPosition()
+    // Acquire image
+    imgList = mm.acquisitions().snap();
+    // construct imp and ip
+    img = imgList.get(0);
+    ip = mm.data().ij().createProcessor(img);   //imp = new ImagePlus("Image", ip);
+    imp = new ImagePlus("AveImageZ", ip);
+    ImageConverter icv = new ImageConverter(imp);
+    icv.convertToGray32();
+    impList[z] = imp;
+}
+// display impList
+ImageStack stack = new ImageStack(impList[0].getWidth(), impList[0].getHeight());
+for (int i = 0; i < impList.length; i++) {
+    stack.addSlice(impList[i].getProcessor());
+}
+ImagePlus impStack = new ImagePlus("LD Images", stack);
+impStack.show();
+
+/** Process Images */
+// diaplay color wheel
+cmimp = IJ.openImage(calibPath + "cm.png");
+cmimp.show();
+// cal constant
+Acos23 = (Math.cos(alpha[1]) - Math.cos(alpha[2]));
+Acos12 = (Math.cos(alpha[0]) - Math.cos(alpha[1]));
+Acos31 = (Math.cos(alpha[2]) - Math.cos(alpha[0]));
+Asin23 = (Math.sin(alpha[1]) - Math.sin(alpha[2]));
+Asin12 = (Math.sin(alpha[0]) - Math.sin(alpha[1]));
+Asin31 = (Math.sin(alpha[2]) - Math.sin(alpha[0]));
+//
+float[][] hsvpixel = new float[3][impList[0].getWidth()*impList[0].getHeight()];
+int[] rgbpixel = new int[impList[0].getWidth()*impList[0].getHeight()];
+// loop
+//IntStream.range(0, impList[0].getWidth()).parallel().forEach(y -> {
+for (int pp = 0; pp < impList[0].getWidth()*impList[0].getHeight(); pp++) {     
+        I1 = (impList[0].getProcessor().getf(pp)+impList[3].getProcessor().getf(pp))/2.0;
+        I2 = (impList[1].getProcessor().getf(pp)+impList[4].getProcessor().getf(pp))/2.0;
+        I3 = (impList[2].getProcessor().getf(pp)+impList[5].getProcessor().getf(pp))/2.0;  
+        // cal Asin
+        Asin = (Acos23*(I1-I2)-Acos12*(I2-I3))/(Acos23*Asin12-Acos12*Asin23)+
+            (Acos31*(I2-I3)-Acos23*(I3-I1))/(Acos31*Asin23-Acos23*Asin31)+
+            (Acos12*(I3-I1)-Acos31*(I1-I2))/(Acos12*Asin31-Acos31*Asin12);
+        Asin = Asin/3.0;
+        // cal Acos
+        Acos = (Asin23*(I1-I2)-Asin12*(I2-I3))/(Asin23*Acos12-Asin12*Acos23)+
+            (Asin31*(I2-I3)-Asin23*(I3-I1))/(Asin31*Acos23-Asin23*Acos31)+
+            (Asin12*(I3-I1)-Asin31*(I1-I2))/(Asin12*Acos31-Asin31*Acos12);
+        Acos = Acos/3.0;
+        // cal A
+        A = Math.sqrt(Asin * Asin + Acos * Acos);
+        // cal B
+        B = ((I1+I2+I3)-1.5*A)/3;
+        // cal angle
+        angle = Math.atan2(Asin, Acos);
+        // cal color
+        h = (angle+Math.PI/2)%2*Math.PI / (2*Math.PI);
+        s = 0.6;
+        v = A/255.;
+        // set hsvpixel
+        hsvpixel[0][pp] = (float)h;
+        hsvpixel[1][pp] = (float)s;
+        hsvpixel[2][pp] = (float)v; 
+        // get rgb color
+        rgbpixel[pp] = Color.HSBtoRGB((float)h, (float)s, (float)v);
+};
+// hsvpixels to imageplus
+ImageStack hsvStack = new ImageStack(impList[0].getWidth(), impList[0].getHeight());
+for (int i = 0; i < 3; i++) {
+    ImageProcessor ip = new FloatProcessor(impList[0].getWidth(), impList[0].getHeight(), hsvpixel[i]);
+    hsvStack.addSlice(ip);
+}
+ImagePlus impHSV = new ImagePlus("HSV", hsvStack);  
+//impHSV.show();
+// rgb image
+ColorProcessor cp = new ColorProcessor(impList[0].getWidth(), impList[0].getHeight(), rgbpixel);
+ImagePlus impRGB = new ImagePlus("Polarization Result", cp);
+impRGB.show();
+
+
